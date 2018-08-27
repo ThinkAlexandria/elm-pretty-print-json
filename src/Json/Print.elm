@@ -3,15 +3,15 @@ module Json.Print exposing (Config, prettyString, prettyValue)
 {-| Pretty print JSON stored as a `String` or `Json.Encode.Value`
 
 @docs Config, prettyString, prettyValue
+
 -}
-
-import Json.Encode exposing (Value)
-import Json.Decode as Decode exposing (Decoder)
-
 
 -- third
 
-import Pretty exposing (Doc, append, char, line, align, nest, hang, join, string, surround, softline, space)
+import Json.Decode as Decode exposing (Decoder)
+import Json.Encode exposing (Value)
+import Pretty exposing (Doc, align, append, char, hang, join, line, nest, softline, space, string, surround)
+
 
 
 -- UTIL
@@ -68,13 +68,14 @@ stringToDoc s =
 
 numberToDoc : Float -> Doc
 numberToDoc num =
-    string (Basics.toString num)
+    string (String.fromFloat num)
 
 
 boolToDoc : Bool -> Doc
 boolToDoc bool =
     if bool then
         string "true"
+
     else
         string "false"
 
@@ -83,6 +84,7 @@ objectToDoc : Int -> List ( String, Doc ) -> Doc
 objectToDoc indent pairs =
     if List.isEmpty pairs then
         string "{}"
+
     else
         append
             (nest
@@ -107,6 +109,7 @@ listToDoc : Int -> List Doc -> Doc
 listToDoc indent list =
     if List.isEmpty list then
         string "[]"
+
     else
         append
             (nest
@@ -132,8 +135,8 @@ decodeDoc indent =
                 [ Decode.map stringToDoc Decode.string
                 , Decode.map numberToDoc Decode.float
                 , Decode.map boolToDoc Decode.bool
-                , Decode.map (listToDoc indent) (Decode.lazy (\_ -> (Decode.list (decodeDoc indent))))
-                , Decode.map (objectToDoc indent) (Decode.lazy (\_ -> (Decode.keyValuePairs (decodeDoc indent))))
+                , Decode.map (listToDoc indent) (Decode.lazy (\_ -> Decode.list (decodeDoc indent)))
+                , Decode.map (objectToDoc indent) (Decode.lazy (\_ -> Decode.keyValuePairs (decodeDoc indent)))
                 ]
             )
         )
@@ -151,6 +154,7 @@ decodeDoc indent =
 will try to fit it as best as possible to the column width, but can still
 exceed this limit. The maximum column width of the formatted string is
 unbounded.
+
 -}
 type alias Config =
     { indent : Int
@@ -164,12 +168,16 @@ parsing errors.
 -}
 prettyString : Config -> String -> Result String String
 prettyString { columns, indent } json =
-    Result.map (Pretty.pretty columns) (Decode.decodeString (decodeDoc indent) json)
+    Decode.decodeString (decodeDoc indent) json
+        |> Result.map (Pretty.pretty columns)
+        |> Result.mapError Decode.errorToString
 
 
-{-| Formats a `Json.Encode.Value`.  Internally passes the string through
+{-| Formats a `Json.Encode.Value`. Internally passes the string through
 `Json.Decode.decodeValue` and bubbles up any JSON parsing errors.
 -}
 prettyValue : Config -> Value -> Result String String
 prettyValue { columns, indent } json =
-    Result.map (Pretty.pretty columns) (Decode.decodeValue (decodeDoc indent) json)
+    Decode.decodeValue (decodeDoc indent) json
+        |> Result.map (Pretty.pretty columns)
+        |> Result.mapError Decode.errorToString
